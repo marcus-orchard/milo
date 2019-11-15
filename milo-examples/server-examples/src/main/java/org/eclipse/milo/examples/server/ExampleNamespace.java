@@ -14,6 +14,8 @@ import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -496,6 +498,53 @@ public class ExampleNamespace extends ManagedNamespace {
             getNodeManager().addNode(node);
             dynamicFolder.addOrganizes(node);
         }
+
+        // Dynamic Counter
+        {
+            String name = "Counter";
+            NodeId typeId = Identifiers.UInt32;
+            Variant variant = new Variant(uint(0));
+            Timer timer = new Timer();
+
+            UaVariableNode node = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                .setNodeId(newNodeId("HelloWorld/Dynamic/" + name))
+                .setAccessLevel(ubyte(AccessLevel.getMask(AccessLevel.READ_WRITE)))
+                .setBrowseName(newQualifiedName(name))
+                .setDisplayName(LocalizedText.english(name))
+                .setDataType(typeId)
+                .setTypeDefinition(Identifiers.BaseDataVariableType)
+                .build();
+
+            node.setValue(new DataValue(variant));
+
+            Counter counter = new Counter();
+            timer.schedule(counter, 5000, 1000);
+
+            AttributeDelegate delegate = AttributeDelegateChain.create(
+                new AttributeDelegate() {
+                    @Override
+                    public DataValue getValue(AttributeContext context, VariableNode node) throws UaException {
+                        return new DataValue(new Variant(counter.currentValue));
+                    }
+                },
+                ValueLoggingDelegate::new
+            );
+
+            node.setAttributeDelegate(delegate);
+
+            getNodeManager().addNode(node);
+            dynamicFolder.addOrganizes(node);
+        }
+    }
+
+    private class Counter extends TimerTask {
+        int currentValue = 0;
+
+        public void run() {
+            if (currentValue == 100) currentValue = 0;
+            else currentValue ++;
+        }
+
     }
 
     private void addDataAccessNodes(UaFolderNode rootNode) {
